@@ -10,7 +10,7 @@
 #define DMAX 1000   
 #define MAX_CYCLES 1000000
 
-//min heap to get the earliest processor
+//min heap to get the order of processor
 typedef struct {
     int time;
     int id;
@@ -73,6 +73,53 @@ int urand(int min, int max) {
     return min + rand() % (max - min + 1);
 }
 
+// only give units if it is possible give to acheive balance equal load units among three processors
+// the processor cannot take load units from a neighbor.
+bool strict_balance(Processor *procs, int curr, int left, int right) {
+    int C = procs[curr].load;
+    int L = procs[left].load;
+    int R = procs[right].load;
+    
+    int average_load = (C + L + R) / 3;  
+    int left_need = (average_load > L) ? (average_load - L) : 0;
+    int right_need = (average_load > R) ? (average_load - R) : 0;
+
+    if ((C > average_load) && (C - average_load) == (left_need + right_need)) {
+        procs[curr].load = average_load;
+        procs[left].load = average_load;
+        procs[right].load = average_load;  
+        return true;
+    } 
+    return false;
+}
+
+// give out extra load units, do not need to be equal
+bool relaxed_balance(Processor *procs, int curr, int left, int right) {
+    int C = procs[curr].load;
+    int L = procs[left].load;
+    int R = procs[right].load;
+
+    int average_load = (C + L + R) / 3;  
+    int left_need = (average_load > L) ? (average_load - L) : 0;
+    int right_need = (average_load > R) ? (average_load - R) : 0;
+
+    int surplus = C - average_load;
+    if (surplus <= 0) {
+        return false;  
+    }
+
+    int give_left = (surplus >= left_need) ? left_need : surplus;
+    surplus -= give_left;
+    int give_right = (surplus >= right_need) ? right_need : surplus;
+    if (give_left == 0 && give_right == 0) {
+        return false;
+    }
+    procs[curr].load  -= (give_left + give_right);
+    procs[left].load  += give_left;
+    procs[right].load += give_right;
+    return true; 
+}
+
 int main() {
     srand(time(NULL));
 
@@ -93,31 +140,25 @@ int main() {
 
     int cycles = 0;
     int stable_cycles = 0;
-    // execute until reaching MAX_CYCLES or balanced (stable_cycles > 1000 cycles)
-    
+
+    // execute until reaching MAX_CYCLES or balanced (stable_cycles > 1000 cycles)    
     printf("\nStart balancing...\n");
     while (cycles < MAX_CYCLES && stable_cycles < 1000) {
         int curr = heap_pop(&heap).id;
         int left = (curr - 1 + K) % K;
         int right = (curr + 1) % K;
 
-        int C = procs[curr].load;
-        int L = procs[left].load;
-        int R = procs[right].load;
-        
-        int average_load = (C + L + R) / 3;  
-        int left_need = (average_load > L) ? average_load - L : 0;
-        int right_need = (average_load > R) ? average_load - R : 0;
-
-        // if it is possible to balance the load
-        if ((C > average_load) && (C - average_load) == (left_need + right_need)) {
-            procs[curr].load = average_load;
-            procs[left].load = average_load;
-            procs[right].load = average_load;  
+        if (strict_balance(procs, curr, left, right)) {
             stable_cycles = 0;
         } else {
             stable_cycles += 1;
         }
+        // if (relaxed_balance(procs, curr, left, right)) {
+        //     stable_cycles = 0;
+        // } else {
+        //     stable_cycles += 1;
+        // }
+
         procs[curr].next_time += urand(DMIN, DMAX);
         heap_push(&heap, procs[curr].next_time, curr);
         cycles += 1;
