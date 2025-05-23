@@ -138,16 +138,19 @@ int main() {
         printf("%d ", procs[i].load);        
     }
 
+    int curr_time = 0;
     int cycles = 0;
     int stable_cycles = 0;
 
     // execute until reaching MAX_CYCLES or balanced (stable_cycles > 1000 cycles)    
     printf("\nStart balancing...\n");
     while (cycles < MAX_CYCLES && stable_cycles < 1000) {
-        int curr = heap_pop(&heap).id;
+        HeapNode node = heap_pop(&heap);  
+        int curr = node.id;
         int left = (curr - 1 + K) % K;
         int right = (curr + 1) % K;
-
+        curr_time = node.time;  
+        
         if (strict_balance(procs, curr, left, right)) {
             stable_cycles = 0;
         } else {
@@ -159,12 +162,12 @@ int main() {
         //     stable_cycles += 1;
         // }
 
-        procs[curr].next_time += urand(DMIN, DMAX);
+        procs[curr].next_time = curr_time + urand(DMIN, DMAX);
         heap_push(&heap, procs[curr].next_time, curr);
         cycles += 1;
     }
 
-    printf("Finished at %d cycles, Processor load:\n", cycles);
+    printf("Finished at %d time, ran %d cycles, Processor load:\n", curr_time, cycles);
     for (int i = 0; i < K; i++) {        
         printf("%d ", procs[i].load);        
     }
