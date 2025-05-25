@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#include <unistd.h>
 
-#define K 10
+#define MAX_K 100
 #define LMIN 10     // load limit
 #define LMAX 1000   
 #define DMIN 100    // distribution 
@@ -17,8 +18,8 @@ typedef struct {
 } HeapNode;
 
 typedef struct {
-    HeapNode data[K];
-    int size;
+    HeapNode *data;
+    int size, capacity;
 } MinHeap;
 
 typedef struct {
@@ -28,7 +29,7 @@ typedef struct {
 } Processor;
 
 void heap_push(MinHeap *heap, int time, int id) {
-    if (heap->size >= K) {
+    if (heap->size >= heap->capacity) {
         fprintf(stderr, "Heap overflow\n");
         return;
     }
@@ -120,12 +121,25 @@ bool relaxed_balance(Processor *procs, int curr, int left, int right) {
     return true; 
 }
 
-int main() {
-    srand(time(NULL));
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <num_processors>\n", argv[0]);
+        return 1;
+    }
+    int K = atoi(argv[1]);  
+    if (K != 5 && K != 10 && K != 100) {
+        fprintf(stderr, "Error: num_processors must be one of {5, 10, 100}.\n");
+        return 1;
+    }
 
-    // initialize processors    
-    Processor procs[K];
-    MinHeap heap = {0};
+    srand((unsigned)(time(NULL) ^ getpid()));
+
+    // initialize processors
+    Processor *procs = malloc(K * sizeof * procs);
+    MinHeap heap;
+    heap.data = malloc(K * sizeof * heap.data);
+    heap.capacity = K;
+    heap.size = 0; 
     for (int i = 0; i < K; i++) {
         procs[i].next_time = urand(DMIN, DMAX);
         procs[i].load = urand(LMIN, LMAX); 
@@ -172,5 +186,7 @@ int main() {
         printf("%d ", procs[i].load);        
     }
     printf("\n");
+    free(procs);
+    free(heap.data);
     return 0;    
 }
