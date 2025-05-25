@@ -7,5 +7,5 @@ To change to `relaxed_balance`, replace the call to `strict_balance` in `main()`
 
 ```
 $ make
-$ ./balance <num_processors> // num_processor = 5, 10 ,100
+$ ./balance <num_processors = {5, 10, 100}> 
 ```

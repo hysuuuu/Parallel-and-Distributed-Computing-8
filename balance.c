@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-#define MAX_K 100
 #define LMIN 10     // load limit
 #define LMAX 1000   
 #define DMIN 100    // distribution 
@@ -123,7 +122,7 @@ bool relaxed_balance(Processor *procs, int curr, int left, int right) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <num_processors>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <num_processors = {5, 10, 100}>\n", argv[0]);
         return 1;
     }
     int K = atoi(argv[1]);  
@@ -156,7 +155,7 @@ int main(int argc, char *argv[]) {
     int cycles = 0;
     int stable_cycles = 0;
 
-    // execute until reaching MAX_CYCLES or balanced (stable_cycles > 1000 cycles)    
+    // execute until reaching MAX_CYCLES or steady/balanced (stable_cycles > 1000 cycles)    
     printf("\nStart balancing...\n");
     while (cycles < MAX_CYCLES && stable_cycles < 1000) {
         HeapNode node = heap_pop(&heap);  
