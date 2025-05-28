@@ -3,6 +3,7 @@
 #include <time.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <string.h>
 
 #define LMIN 10     // load limit
 #define LMAX 1000   
@@ -85,9 +86,9 @@ bool strict_balance(Processor *procs, int curr, int left, int right) {
     int right_need = (average_load > R) ? (average_load - R) : 0;
 
     if ((C > average_load) && (C - average_load) == (left_need + right_need)) {
-        procs[curr].load = average_load;
-        procs[left].load = average_load;
-        procs[right].load = average_load;  
+        procs[curr].load = C - (left_need + right_need);
+        procs[left].load = L + left_need;
+        procs[right].load = R + right_need;  
         return true;
     } 
     return false;
@@ -153,27 +154,44 @@ int main(int argc, char *argv[]) {
 
     int curr_time = 0;
     int cycles = 0;
-    int stable_cycles = 0;
-
-    // execute until reaching MAX_CYCLES or steady/balanced (stable_cycles > 1000 cycles)    
+    bool seen[K];
+    int visited = 0;
+    memset(seen, 0, K * sizeof(bool));
+    bool moved_this_round = false;
+    
+    // execute until reaching MAX_CYCLES or steady   
     printf("\nStart balancing...\n");
-    while (cycles < MAX_CYCLES && stable_cycles < 1000) {
+    while (cycles < MAX_CYCLES) {
         HeapNode node = heap_pop(&heap);  
         int curr = node.id;
         int left = (curr - 1 + K) % K;
         int right = (curr + 1) % K;
         curr_time = node.time;  
         
-        if (strict_balance(procs, curr, left, right)) {
-            stable_cycles = 0;
-        } else {
-            stable_cycles += 1;
+        // bool moved = strict_balance(procs, curr, left, right); 
+        bool moved = relaxed_balance(procs, curr, left, right);  
+        if (!seen[curr]) {         
+            seen[curr] = true;
+            visited++;
         }
-        // if (relaxed_balance(procs, curr, left, right)) {
-        //     stable_cycles = 0;
-        // } else {
-        //     stable_cycles += 1;
-        // }
+        if (moved) {                
+            moved_this_round = true;
+        }
+
+        // if all processors were visited in this round, check if the system is balanced 
+        if (visited == K) {
+            if (!moved_this_round) {
+                printf("System is steady – no further transfers possible.\n");
+                break;             
+            }
+            // if transfer still occurs, start the new round
+            memset(seen, 0, K * sizeof(bool));
+            visited = 0;
+            moved_this_round = false;
+
+            seen[curr] = true;
+            visited = 1;
+        }
 
         procs[curr].next_time = curr_time + urand(DMIN, DMAX);
         heap_push(&heap, procs[curr].next_time, curr);
