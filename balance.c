@@ -7,9 +7,11 @@
 
 #define LMIN 10     // load limit
 #define LMAX 1000   
-#define DMIN 100    // distribution 
+#define DMIN 100    // time
 #define DMAX 1000   
-#define MAX_CYCLES 1000000
+#define MAX_TIME 1000000
+
+#define EPSILON 2
 
 //min heap to get the order of processor
 typedef struct {
@@ -74,28 +76,8 @@ int urand(int min, int max) {
     return min + rand() % (max - min + 1);
 }
 
-// only give units if it is possible give to acheive balance equal load units among three processors
-// the processor cannot take load units from a neighbor.
-bool strict_balance(Processor *procs, int curr, int left, int right) {
-    int C = procs[curr].load;
-    int L = procs[left].load;
-    int R = procs[right].load;
-    
-    int average_load = (C + L + R) / 3;  
-    int left_need = (average_load > L) ? (average_load - L) : 0;
-    int right_need = (average_load > R) ? (average_load - R) : 0;
-
-    if ((C > average_load) && (C - average_load) == (left_need + right_need)) {
-        procs[curr].load = C - (left_need + right_need);
-        procs[left].load = L + left_need;
-        procs[right].load = R + right_need;  
-        return true;
-    } 
-    return false;
-}
-
-// give out extra load units, do not need to be equal
-bool relaxed_balance(Processor *procs, int curr, int left, int right) {
+// transfer surplus load units to raise neighboring processors' load units to average
+bool balance(Processor *procs, int curr, int left, int right) {
     int C = procs[curr].load;
     int L = procs[left].load;
     int R = procs[right].load;
@@ -121,16 +103,49 @@ bool relaxed_balance(Processor *procs, int curr, int left, int right) {
     return true; 
 }
 
+// check whether processor and its neighbors satisfy (max - min <= epsilon)
+bool is_local_balanced(Processor *procs, int curr, int left, int right, int epsilon)
+{
+    int C = procs[curr].load;
+    int L = procs[left].load;
+    int R = procs[right].load;
+
+    int max = C;
+    if (L > max)
+        max = L;
+    if (R > max)
+        max = R;
+
+    int min = C;
+    if (L < min)
+        min = L;
+    if (R < min)
+        min = R;
+
+    return (max - min) <= epsilon;
+}
+
+// check whether the whole system is balanced (every processor is local balanced)
+bool is_system_balanced(Processor *procs, int K, int epsilon)
+{
+    for (int i = 0; i < K; i++)
+    {
+        int L = (i - 1 + K) % K;
+        int R = (i + 1) % K;
+        if (!is_local_balanced(procs, i, L, R, epsilon))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <num_processors = {5, 10, 100}>\n", argv[0]);
         return 1;
     }
     int K = atoi(argv[1]);  
-    if (K != 5 && K != 10 && K != 100) {
-        fprintf(stderr, "Error: num_processors must be one of {5, 10, 100}.\n");
-        return 1;
-    }
 
     srand((unsigned)(time(NULL) ^ getpid()));
 
@@ -153,38 +168,47 @@ int main(int argc, char *argv[]) {
     }
 
     int curr_time = 0;
-    int cycles = 0;
     bool seen[K];
     int visited = 0;
     memset(seen, 0, K * sizeof(bool));
     bool moved_this_round = false;
+    bool system_balanced = false;
     
-    // execute until reaching MAX_CYCLES or steady   
+    // execute until reaching MAX_TIME or steady   
     printf("\nStart balancing...\n");
-    while (cycles < MAX_CYCLES) {
+    while (1) {
+        if (heap.size == 0 || heap.data[0].time >= MAX_TIME) {
+            printf("Reached MAX_TIME\n");
+            curr_time = MAX_TIME;
+            system_balanced = is_system_balanced(procs, K, EPSILON);
+            break;
+        }
         HeapNode node = heap_pop(&heap);  
         int curr = node.id;
         int left = (curr - 1 + K) % K;
-        int right = (curr + 1) % K;
-        curr_time = node.time;  
+        int right = (curr + 1) % K;   
+        curr_time = node.time;       
         
-        // bool moved = strict_balance(procs, curr, left, right); 
-        bool moved = relaxed_balance(procs, curr, left, right);  
         if (!seen[curr]) {         
             seen[curr] = true;
-            visited++;
+            visited += 1;
         }
+
+        bool moved = balance(procs, curr, left, right);  
         if (moved) {                
             moved_this_round = true;
         }
 
-        // if all processors were visited in this round, check if the system is balanced 
+        // if all processors were visited, check if the system is steady
         if (visited == K) {
+            // no transfer uccorred, the system is steady
             if (!moved_this_round) {
                 printf("System is steady – no further transfers possible.\n");
+                // check if the system is balanced
+                system_balanced = is_system_balanced(procs, K, EPSILON);
                 break;             
             }
-            // if transfer still occurs, start the new round
+            // if transfer still occurred, starts a new round
             memset(seen, 0, K * sizeof(bool));
             visited = 0;
             moved_this_round = false;
@@ -195,10 +219,10 @@ int main(int argc, char *argv[]) {
 
         procs[curr].next_time = curr_time + urand(DMIN, DMAX);
         heap_push(&heap, procs[curr].next_time, curr);
-        cycles += 1;
     }
 
-    printf("Finished at %d time, ran %d cycles, Processor load:\n", curr_time, cycles);
+    printf("System Balanced (ε = %d): %s.\n", EPSILON, system_balanced ? "YES" : "NO");
+    printf("Finished at time: %d, Processor load:\n", curr_time);
     for (int i = 0; i < K; i++) {        
         printf("%d ", procs[i].load);        
     }
